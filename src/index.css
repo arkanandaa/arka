@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", serif;
+  --color-paper: #f5f2ed;
+  --color-ink: #1a1a1a;
+  --color-accent: #8b7e6a;
+}
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-sans selection:bg-accent selection:text-white;
+    cursor: default;
+  }
+
+  h1, h2, h3, h4, .serif {
+    @apply font-serif font-light tracking-tight;
+  }
+}
+
+@layer components {
+  .nav-item {
+    @apply px-8 py-5 text-[10px] uppercase tracking-[0.2em] border-r border-ink/10 hover:bg-ink/5 transition-all duration-500 ease-out relative overflow-hidden;
+  }
+
+  .nav-item::after {
+    content: '';
+    @apply absolute bottom-0 left-0 w-full h-[1px] bg-ink scale-x-0 transition-transform duration-500 origin-right;
+  }
+
+  .nav-item:hover::after {
+    @apply scale-x-100 origin-left;
+  }
+
+  .vertical-text {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+
+  .oval-mask {
+    border-radius: 50% / 35%;
+    @apply transition-all duration-700 ease-in-out;
+  }
+
+  .glass-card {
+    @apply bg-white/40 backdrop-blur-xl border border-white/20 shadow-2xl shadow-black/5;
+  }
+
+  .btn-prestige {
+    @apply px-10 py-4 rounded-full border border-ink/20 text-[11px] uppercase tracking-[0.2em] hover:bg-ink hover:text-paper transition-all duration-500 ease-out;
+  }
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Montserrat:wght@200;300;400;500;600&display=swap');
