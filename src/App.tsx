@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, ArrowRight, Github, Linkedin, Mail, Plus, Trash2, Edit2, Save, LogOut } from 'lucide-react';
-import { db } from './lib/firebase';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy } from 'firebase/firestore';
-import { Role, Expertise, Project, Skill } from './types';
+import { db, storage } from './lib/firebase';
+import { collection, onSnapshot, addDoc, deleteDoc, doc, updateDoc, query, orderBy, setDoc } from 'firebase/firestore';
+import { ref, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
+import { Role, Expertise, Project, Skill, Profile } from './types';
 import { cn } from './lib/utils';
 
 // --- Components ---
@@ -121,7 +122,7 @@ const PageTransition = ({ children }: { children: React.ReactNode }) => (
   </motion.div>
 );
 
-const Hero = () => {
+const Hero = ({ profileImage }: { profileImage: string }) => {
   return (
     <section className="relative min-h-screen flex items-center justify-center pt-24 px-6 overflow-hidden">
       <div className="max-w-[1440px] w-full grid lg:grid-cols-[1.618fr_1fr] gap-16 items-center">
@@ -183,7 +184,7 @@ const Hero = () => {
           <div className="absolute inset-0 border border-accent/20 translate-x-6 translate-y-6 rounded-[2rem]" />
           <div className="relative w-full h-full overflow-hidden rounded-[2rem] bg-card">
             <img
-              src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=800"
+              src={profileImage || "https://mediaproxy.tvtropes.org/width/1200/https://static.tvtropes.org/pmwiki/pub/images/img_0089_9.jpeg"}
               alt="Professional Portrait"
               className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-1000"
               referrerPolicy="no-referrer"
@@ -328,11 +329,20 @@ const Portfolio = () => {
   const [roles, setRoles] = useState<Role[]>([]);
   const [expertise, setExpertise] = useState<Expertise[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   useEffect(() => {
+    // One-time update to the requested profile image
+    const updateProfileImage = async () => {
+      const targetUrl = "https://mediaproxy.tvtropes.org/width/1200/https://static.tvtropes.org/pmwiki/pub/images/img_0089_9.jpeg";
+      await setDoc(doc(db, 'profile', 'main'), { imageUrl: targetUrl }, { merge: true });
+    };
+    updateProfileImage();
+
     const qRoles = query(collection(db, 'roles'));
     const qExpertise = query(collection(db, 'expertise'));
     const qProjects = query(collection(db, 'projects'));
+    const qProfile = doc(db, 'profile', 'main');
 
     const unsubRoles = onSnapshot(qRoles, (snap) => {
       setRoles(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Role)));
@@ -343,18 +353,24 @@ const Portfolio = () => {
     const unsubProjects = onSnapshot(qProjects, (snap) => {
       setProjects(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project)));
     });
+    const unsubProfile = onSnapshot(qProfile, (snap) => {
+      if (snap.exists()) {
+        setProfile(snap.data() as Profile);
+      }
+    });
 
     return () => {
       unsubRoles();
       unsubExpertise();
       unsubProjects();
+      unsubProfile();
     };
   }, []);
 
   return (
     <div className="min-h-screen">
       <Navbar />
-      <Hero />
+      <Hero profileImage={profile?.imageUrl || ''} />
 
       {/* Role Section */}
       <section id="role" className="py-32 px-6 md:px-12 max-w-[1440px] mx-auto border-t border-ink/5">
@@ -709,15 +725,18 @@ const AdminLogin = ({ onLogin }: { onLogin: () => void }) => {
 };
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState<'roles' | 'expertise' | 'projects'>('roles');
+  const [activeTab, setActiveTab] = useState<'roles' | 'expertise' | 'projects' | 'profile'>('roles');
   const [roles, setRoles] = useState<Role[]>([]);
   const [expertise, setExpertise] = useState<Expertise[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
 
   // Form states
   const [newRole, setNewRole] = useState({ title: '', description: '' });
   const [newExpertise, setNewExpertise] = useState({ title: '', description: '', longDescription: '' });
   const [newProject, setNewProject] = useState({ title: '', description: '', longDescription: '', imageUrl: '', link: '', tags: '' });
+  const [profileUrl, setProfileUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     const unsubRoles = onSnapshot(collection(db, 'roles'), (snap) => {
@@ -729,7 +748,14 @@ const AdminDashboard = () => {
     const unsubProjects = onSnapshot(collection(db, 'projects'), (snap) => {
       setProjects(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project)));
     });
-    return () => { unsubRoles(); unsubExpertise(); unsubProjects(); };
+    const unsubProfile = onSnapshot(doc(db, 'profile', 'main'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as Profile;
+        setProfile(data);
+        setProfileUrl(data.imageUrl);
+      }
+    });
+    return () => { unsubRoles(); unsubExpertise(); unsubProjects(); unsubProfile(); };
   }, []);
 
   const handleAddRole = async () => {
@@ -753,6 +779,60 @@ const AdminDashboard = () => {
     setNewProject({ title: '', description: '', imageUrl: '', link: '', tags: '' });
   };
 
+  const handleUpdateProfileUrl = async () => {
+    await setDoc(doc(db, 'profile', 'main'), { imageUrl: profileUrl });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    console.log("Starting upload to bucket:", storage.app.options.storageBucket);
+    setUploading(true);
+    
+    try {
+      // Use a simpler path to avoid potential issues
+      const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      const storageRef = ref(storage, fileName);
+      
+      const uploadTask = uploadBytesResumable(storageRef, file);
+      
+      await new Promise((resolve, reject) => {
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log('Upload is ' + progress + '% done');
+          }, 
+          (error) => {
+            console.error("Upload task error:", error);
+            reject(error);
+          }, 
+          async () => {
+            try {
+              const url = await getDownloadURL(uploadTask.snapshot.ref);
+              setProfileUrl(url);
+              await setDoc(doc(db, 'profile', 'main'), { imageUrl: url });
+              resolve(url);
+            } catch (e) {
+              reject(e);
+            }
+          }
+        );
+      });
+    } catch (err: any) {
+      console.error("Firebase Storage Error Detail:", err);
+      if (err.code === 'storage/retry-limit-exceeded') {
+        alert(`Upload timed out. \n\nCurrent Bucket: ${storage.app.options.storageBucket}\n\nTroubleshooting:\n1. Check if Firebase Storage is ENABLED in your console.\n2. Ensure the bucket name matches exactly.\n3. Check your internet connection.`);
+      } else if (err.code === 'storage/unauthorized') {
+        alert('Upload failed: Unauthorized. Please check your Firebase Storage security rules.');
+      } else {
+        alert(`Upload failed: ${err.message}`);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleDelete = async (coll: string, id: string) => {
     await deleteDoc(doc(db, coll, id));
   };
@@ -764,7 +844,7 @@ const AdminDashboard = () => {
         <div className="flex justify-between items-center mb-12">
           <h1 className="text-5xl font-serif">Dashboard</h1>
           <div className="flex bg-card rounded-full p-1 shadow-sm border border-white/5">
-            {(['roles', 'expertise', 'projects'] as const).map((tab) => (
+            {(['roles', 'expertise', 'projects', 'profile'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -919,6 +999,72 @@ const AdminDashboard = () => {
                     </button>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'profile' && (
+            <div className="space-y-12">
+              <div className="grid lg:grid-cols-2 gap-12 items-start">
+                <div className="space-y-8">
+                  <h3 className="text-2xl font-serif">Profile Picture Settings</h3>
+                  
+                  <div className="space-y-4">
+                    <label className="typewriter opacity-60 block">Option 1: External URL (Google Drive, etc.)</label>
+                    <div className="flex gap-4">
+                      <input
+                        placeholder="https://drive.google.com/..."
+                        className="flex-1 bg-paper p-4 rounded-xl outline-none text-ink"
+                        value={profileUrl}
+                        onChange={e => setProfileUrl(e.target.value)}
+                      />
+                      <button 
+                        onClick={handleUpdateProfileUrl}
+                        className="bg-accent text-black px-8 rounded-xl font-bold hover:bg-accent/80 transition-colors"
+                      >
+                        Update
+                      </button>
+                    </div>
+                    <p className="text-[10px] opacity-40 italic">Note: For Google Drive, ensure the link is a direct download link or publicly accessible.</p>
+                  </div>
+
+                  <div className="space-y-4 pt-8 border-t border-white/5">
+                    <div className="flex justify-between items-center">
+                      <label className="typewriter opacity-60 block">Option 2: Upload Local File</label>
+                      <span className="text-[10px] text-accent/60">Ensure Storage Rules allow writes</span>
+                    </div>
+                    <div className="relative group">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        disabled={uploading}
+                      />
+                      <div className={cn(
+                        "w-full p-12 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center gap-4 transition-all",
+                        uploading ? "border-accent/50 bg-accent/5" : "border-white/10 group-hover:border-accent/30 group-hover:bg-white/5"
+                      )}>
+                        <Plus className={cn("text-accent", uploading && "animate-spin")} size={32} />
+                        <span className="typewriter text-sm">
+                          {uploading ? "Uploading System..." : "Click or Drag to Upload"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <h3 className="typewriter text-accent">Current Preview</h3>
+                  <div className="aspect-[1/1.618] w-full max-w-xs mx-auto relative rounded-[2rem] overflow-hidden bg-paper border border-white/5 shadow-2xl">
+                    <img
+                      src={profile?.imageUrl || "https://mediaproxy.tvtropes.org/width/1200/https://static.tvtropes.org/pmwiki/pub/images/img_0089_9.jpeg"}
+                      alt="Profile Preview"
+                      className="w-full h-full object-cover grayscale"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           )}
