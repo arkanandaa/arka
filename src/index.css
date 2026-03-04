@@ -1,82 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Cormorant Garamond", serif;
-  --font-mono: "JetBrains Mono", "Courier New", monospace;
-  --color-paper: #000000;
-  --color-card: #121212;
-  --color-ink: #ffffff;
-  --color-accent: #c69749;
-  --color-muted-accent: #735f32;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   
-  /* Fibonacci-based spacing/sizing */
-  --spacing-fib-1: 0.618rem;
-  --spacing-fib-2: 1rem;
-  --spacing-fib-3: 1.618rem;
-  --spacing-fib-4: 2.618rem;
-  --spacing-fib-5: 4.236rem;
-  --spacing-fib-6: 6.854rem;
-  --spacing-fib-7: 11.089rem;
+  --color-ink: #ffffff;
+  --color-paper: #000000;
+  --color-card: #0a0a0a;
+  --color-accent: #C5A059; /* Warm Gold/Bronze */
 }
 
 @layer base {
   body {
-    @apply bg-paper text-ink font-sans selection:bg-accent selection:text-black antialiased;
-    cursor: default;
+    @apply bg-paper text-ink font-sans antialiased selection:bg-accent selection:text-black;
   }
 
-  h1, h2, h3, h4, .serif {
+  h1, h2, h3, h4 {
     @apply font-serif font-light tracking-tight;
   }
-
-  .typewriter {
-    @apply font-mono text-[10px] uppercase tracking-[0.2em];
+  
+  .label-caps {
+    @apply uppercase tracking-[0.3em] text-[10px] font-semibold text-accent/60;
   }
 }
 
 @layer components {
-  .nav-item {
-    @apply px-8 py-5 font-mono text-[10px] uppercase tracking-[0.2em] border-r border-ink/10 hover:bg-ink/5 transition-all duration-500 ease-out relative overflow-hidden;
+  .btn-luxury {
+    @apply px-10 py-4 border border-accent/20 text-accent hover:bg-accent hover:text-black transition-all duration-700 uppercase tracking-[0.25em] text-[10px] font-medium bg-transparent;
+  }
+  
+  .nav-item-luxury {
+    @apply px-8 py-6 font-sans text-[11px] uppercase tracking-[0.2em] text-ink/60 hover:text-accent transition-all duration-500 relative;
   }
 
-  .nav-item::after {
+  .nav-item-luxury::after {
     content: '';
-    @apply absolute bottom-0 left-0 w-full h-[1px] bg-accent scale-x-0 transition-transform duration-500 origin-right;
+    @apply absolute bottom-4 left-1/2 w-1 h-1 bg-accent rounded-full scale-0 transition-transform duration-500 -translate-x-1/2;
   }
 
-  .nav-item:hover::after {
-    @apply scale-x-100 origin-left;
+  .nav-item-luxury.active::after {
+    @apply scale-100;
   }
-
-  .vertical-text {
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-  }
-
-  .oval-mask {
-    border-radius: 50% / 35%;
-    @apply transition-all duration-700 ease-in-out;
-  }
-
-  .glass-card {
-    @apply bg-card/60 backdrop-blur-xl border border-white/5 shadow-2xl shadow-black/40;
-  }
-
-  .btn-prestige {
-    @apply px-10 py-4 rounded-full border border-accent/20 font-mono text-[10px] uppercase tracking-[0.2em] hover:bg-accent hover:text-black transition-all duration-500 ease-out;
-  }
-
-  /* Fibonacci Grid Layouts */
-  .fib-split {
-    display: grid;
-    grid-template-columns: 1.618fr 1fr;
-  }
-
-  .fib-split-rev {
-    display: grid;
-    grid-template-columns: 1fr 1.618fr;
+  
+  .card-luxury {
+    @apply bg-card border border-white/5 hover:border-accent/20 transition-all duration-700;
   }
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400&family=Montserrat:wght@200;300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap');
+.luxury-line {
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(197, 160, 89, 0.2), transparent);
+}
+
+.luxury-gradient-text {
+  background: linear-gradient(to bottom right, #ffffff, #C5A059);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
